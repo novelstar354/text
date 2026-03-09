@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>TS Code</title>
+    <link rel="icon" href="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR1NKF2PBsyNdpEcutEiAZgbE6xie_0T0UFnA&s" sizes="16×16" type="image/png" /> 
+    <style>
+        body {
+            margin: 0;
+            font-family: monospace;
+            background: #1e1e1e;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        #toolbar {
+            background: #252526;
+            padding: 6px;
+            display: flex;
+            gap: 6px;
+        }
+
+        button {
+            background: #444;
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+
+        #editor {
+            flex: 1;
+            display: flex;
+        }
+
+        #lines {
+            width: 40px;
+            padding: 10px;
+            color: #888;
+            text-align: right;
+        }
+
+        textarea {
+            flex: 1;
+            background: #1e1e1e;
+            color: white;
+            border: none;
+            outline: none;
+            font-family: monospace;
+            padding: 10px;
+        }
+
+        /* bottom */
+        #bottom {
+            height: 220px;
+            background: #111;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #console {
+            flex: 1;
+            overflow: auto;
+            padding: 6px;
+            border-bottom: 1px solid #333;
+        }
+
+        #terminal {
+            background: #000;
+            color: #0f0;
+            border: none;
+            outline: none;
+            padding: 6px;
+            font-family: monospace;
+        }
+
+        /* debugger */
+        #debugPanel {
+            height: 80px;
+            background: #202020;
+            padding: 6px;
+            overflow: auto;
+        }
+
+        #tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .tab {
+            padding: 5px 10px;
+            background: #444;
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+
+        .tab button {
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-size: 14px;
+            margin-left: 5px;
+            cursor: pointer;
+        }
+
+    </style>
+</head>
+
+<body>
+
+<div id="toolbar">
+    <button onclick="run()">▶ Run</button>
+    <button onclick="startDebug()">🐞 Debug</button>
+    <button onclick="step()">Step</button>
+    <button onclick="newFile()">New File</button>
+    <button onclick="saveFile()">Save File</button>
+    <button onclick="loadFile()">Load File</button>
+    <button onclick="toggleTheme()">Toggle Theme</button>
+</div>
+
+<div id="tabs"></div> <!-- タブ表示用のエリア -->
+
+<div id="editor">
+    <div id="lines"></div>
+    <textarea id="code"></textarea>
+</div>
+
+<div id="bottom">
+    <div id="console"></div>
+    <div id="debugPanel">Variables:</div>
+    <input id="terminal" placeholder="terminal command">
+</div>
+
+<script>
+    const code = document.getElementById("code");
+    const lines = document.getElementById("lines");
+    const consolePanel = document.getElementById("console");
+    const debugPanel = document.getElementById("debugPanel");
+    const terminal = document.getElementById("terminal");
+
+    let openFiles = {};
+    let debugLines = [];
+    let debugIndex = 0;
+    let vars = {};
+    let isDarkMode = true;
+
+    // 行番号の更新
+    function updateLines() {
+        let count = code.value.split("\n").length;
+        let html = "";
+        for (let i = 1; i <= count; i++) {
+            html += i + "<br>";
+        }
+        lines.innerHTML = html;
+    }
+
+    code.addEventListener("input", updateLines);
+    updateLines();
+
+    // コンソールログ
+    function log(msg) {
+        consolePanel.innerHTML += msg + "<br>";
+        consolePanel.scrollTop = consolePanel.scrollHeight;
+    }
+    console.log = (msg) => log(msg);
+
+    // 実行
+    function run() {
+        consolePanel.innerHTML = "";
+        try {
+            eval(code.value);
+        } catch (e) {
+            log("Error: " + e.message);
+        }
+    }
+
+    // デバッグ
+    function startDebug() {
+        consolePanel.innerHTML = "";
+        debugLines = code.value.split("\n");
+        debugIndex = 0;
+        vars = {};
+        debugPanel.innerHTML = "Variables:";
+    }
+
+    function step() {
+        if (debugIndex >= debugLines.length) return;
+        let line = debugLines[debugIndex];
+        try {
+            eval(line);
+        } catch (e) {
+            log("Error line " + (debugIndex + 1) + ": " + e.message);
+        }
+        debugIndex++;
+        updateVars();
+    }
+
+    function updateVars() {
+        let html = "Variables:<br>";
+        for (let k in vars) {
+            html += k + " = " + vars[k] + "<br>";
+        }
+        debugPanel.innerHTML = html;
+    }
+
+    // ファイル操作
+    function saveFile() {
+        const filename = prompt("Enter filename to save as:");
+        if (filename) {
+            localStorage.setItem(filename, code.value);
+            log(`File saved as ${filename}`);
+        }
+    }
+
+    function loadFile() {
+    const filename = prompt("Enter filename to load:");
+    const fileContent = localStorage.getItem(filename);
+    if (fileContent) {
+        code.value = fileContent;
+        updateLines();
+        log(`File ${filename} loaded.`);
+
+        // ファイルを開く（タブを作成）
+        openFile(filename, fileContent); // ロードしたファイルを開く
+    } else {
+        log(`File ${filename} not found.`);
+    }
+}
+
+    function newFile() {
+    code.value = ''; // エディタを空にする
+    updateLines();
+    log("New file created.");
+
+    // 新しいファイルを開く
+    openFile('newfile.js', ''); // 新しいファイルを作成し、タブを追加
+}
+
+    // マルチタブ機能
+    // マルチタブ機能
+function newFileTab(filename) {
+    const tab = document.createElement("div");
+    tab.className = 'tab';
+    tab.innerHTML = `${filename} <button onclick="closeTab('${filename}')">×</button>`;
+    tab.onclick = () => loadFileTab(filename);  // タブをクリックしたときにファイルを読み込む
+    document.getElementById("tabs").appendChild(tab);  // タブを#tabsに追加
+}
+
+// タブを閉じる
+function closeTab(filename) {
+    delete openFiles[filename];
+    const tabs = document.getElementById("tabs").children;
+    for (let tab of tabs) {
+        if (tab.innerText.includes(filename)) {
+            tab.remove();  // タブを削除
+            break;
+        }
+    }
+    if (Object.keys(openFiles).length > 0) {
+        loadFileTab(Object.keys(openFiles)[0]);  // 最初のタブを表示
+    } else {
+        code.value = '';  // エディタを空にする
+        updateLines();
+    }
+    log(`File ${filename} closed.`);
+}
+
+// ファイルを切り替える
+function loadFileTab(filename) {
+    const fileContent = openFiles[filename] || '';
+    code.value = fileContent;  // エディタにファイル内容を表示
+    updateLines();  // 行番号の更新
+    log(`Switched to ${filename}`);
+}
+
+// ファイルを開く（内容を読み込む）
+function openFile(filename, content) {
+    // ファイル内容を保存
+    openFiles[filename] = content;
+
+    // 新しいタブを作成
+    newFileTab(filename);
+
+    // ファイルをエディタに表示
+    loadFileTab(filename);
+}
+
+    // テーマ変更
+    function toggleTheme() {
+        isDarkMode = !isDarkMode;
+        document.body.style.backgroundColor = isDarkMode ? '#1e1e1e' : '#fff';
+        document.body.style.color = isDarkMode ? 'white' : 'black';
+        document.getElementById("toolbar").style.backgroundColor = isDarkMode ? '#252526' : '#ddd';
+    }
+
+    // 自動補完
+    function showAutocomplete(e) {
+        const input = code.value.substring(0, e.target.selectionStart);
+        const lastWord = input.split(/\s+/).pop();
+        const matches = suggestions.filter(word => word.startsWith(lastWord));
+        console.log(matches);
+    }
+
+    code.addEventListener('input', showAutocomplete);
+
+    // ターミナル処理
+    terminal.addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+            let cmd = terminal.value;
+            log("> " + cmd);
+            if (cmd === "help") {
+                log("commands: help clear date echo");
+            } else if (cmd === "clear") {
+                consolePanel.innerHTML = "";
+            } else if (cmd.startsWith("echo ")) {
+                log(cmd.substring(5));
+            } else if (cmd === "date") {
+                log(new Date());
+            } else {
+                log("command not found");
+            }
+            terminal.value = "";
+        }
+    });
+
+    openFile('newfile.js', '');
+</script>
+
+</body>
+</html>
