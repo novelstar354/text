@@ -13,6 +13,8 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
+            user-select: none;
+            -webkit-user-select: none;
         }
         
         #toolbar {
@@ -123,7 +125,7 @@
     <button onclick="newFile()">New File</button>
     <button onclick="saveFile()">Save File</button>
     <button onclick="loadFile()">Load File</button>
-    <button onclick="showFileList()">Files</button>
+   <!-- <button onclick="showFileList()">Files</button>-->
     <button onclick="toggleTheme()">Toggle Theme</button>
 </div>
 
