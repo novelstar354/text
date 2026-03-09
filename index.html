@@ -116,11 +116,12 @@
 
 <div id="toolbar">
     <button onclick="run()">▶ Run</button>
-    <button onclick="startDebug()">🐞 Debug</button>
+    <button onclick="startDebug()">Debug</button>
     <button onclick="step()">Step</button>
     <button onclick="newFile()">New File</button>
     <button onclick="saveFile()">Save File</button>
     <button onclick="loadFile()">Load File</button>
+    <button onclick="showFileList()">Files</button>
     <button onclick="toggleTheme()">Toggle Theme</button>
 </div>
 
@@ -136,7 +137,37 @@
     <div id="debugPanel">Variables:</div>
     <input id="terminal" placeholder="terminal command">
 </div>
+<!-- ファイル一覧モーダル -->
+<div id="fileListModal" style="
+    display:none;
+    position:fixed;
+    top:50%;
+    left:50%;
+    transform:translate(-50%, -50%);
+    background:#222;
+    color:white;
+    padding:20px;
+    border:1px solid #555;
+    z-index:1000;
+    max-height:60%;
+    overflow:auto;
+">
+    <h3>Saved Files</h3>
+    <div id="fileListContent"></div>
+    <button onclick="closeFileListModal()" style="margin-top:10px;">Close</button>
+</div>
 
+<!-- モーダル背景 -->
+<div id="modalOverlay" style="
+    display:none;
+    position:fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    background:rgba(0,0,0,0.5);
+    z-index:999;
+"></div>
 <script>
     const code = document.getElementById("code");
     const lines = document.getElementById("lines");
@@ -209,6 +240,16 @@
         debugPanel.innerHTML = html;
     }
 
+    function loadFileFromList(filename) {
+    const content = localStorage.getItem(filename);
+    if (content !== null) {
+        openFile(filename, content); // タブも作成される
+        log(`File ${filename} loaded from list.`);
+    } else {
+        log(`File ${filename} not found.`);
+    }
+}
+
     // ファイル操作
     function saveFile() {
         const filename = prompt("Enter filename to save as:");
@@ -252,20 +293,21 @@ function newFileTab(filename) {
     document.getElementById("tabs").appendChild(tab);  // タブを#tabsに追加
 }
 
-// タブを閉じる
+// ファイルを閉じるときも更新
 function closeTab(filename) {
     delete openFiles[filename];
+    localStorage.setItem("openFiles", JSON.stringify(openFiles)); // 更新
     const tabs = document.getElementById("tabs").children;
     for (let tab of tabs) {
         if (tab.innerText.includes(filename)) {
-            tab.remove();  // タブを削除
+            tab.remove();
             break;
         }
     }
     if (Object.keys(openFiles).length > 0) {
-        loadFileTab(Object.keys(openFiles)[0]);  // 最初のタブを表示
+        loadFileTab(Object.keys(openFiles)[0]);
     } else {
-        code.value = '';  // エディタを空にする
+        code.value = '';
         updateLines();
     }
     log(`File ${filename} closed.`);
@@ -278,16 +320,70 @@ function loadFileTab(filename) {
     updateLines();  // 行番号の更新
     log(`Switched to ${filename}`);
 }
+// ファイル一覧モーダルを開く
+function showFileList() {
+    const container = document.getElementById("fileListContent");
+    container.innerHTML = "";
 
-// ファイルを開く（内容を読み込む）
+    // 保存されたファイル一覧を取得
+    const savedFiles = JSON.parse(localStorage.getItem("openFiles") || "{}");
+
+    // openFiles の中身を表示
+    for (let filename in savedFiles) {
+        const fileDiv = document.createElement("div");
+        fileDiv.style.display = "flex";
+        fileDiv.style.justifyContent = "space-between";
+        fileDiv.style.marginBottom = "5px";
+
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = filename;
+        nameSpan.style.cursor = "pointer";
+        nameSpan.style.color = "#0af";
+        nameSpan.onclick = () => {
+            const content = savedFiles[filename];
+            openFile(filename, content);  // タブを開く
+            closeFileListModal();  // モーダルを閉じる
+            log(`File ${filename} opened from list.`);
+        };
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.textContent = "×";
+        deleteBtn.style.background = "red";
+        deleteBtn.style.color = "white";
+        deleteBtn.style.border = "none";
+        deleteBtn.style.cursor = "pointer";
+        deleteBtn.onclick = () => {
+            if (confirm(`Delete file ${filename}?`)) {
+                delete savedFiles[filename];
+                localStorage.setItem("openFiles", JSON.stringify(savedFiles));  // 更新
+                fileDiv.remove();
+                log(`File ${filename} deleted.`);
+            }
+        };
+
+        fileDiv.appendChild(nameSpan);
+        fileDiv.appendChild(deleteBtn);
+        container.appendChild(fileDiv);
+    }
+
+    document.getElementById("fileListModal").style.display = "block";
+    document.getElementById("modalOverlay").style.display = "block";
+}
+
+function closeFileListModal() {
+    document.getElementById("fileListModal").style.display = "none";
+    document.getElementById("modalOverlay").style.display = "none";
+}
+
+function closeFileListModal() {
+    document.getElementById("fileListModal").style.display = "none";
+    document.getElementById("modalOverlay").style.display = "none";
+}
+// ファイルを開くときにlocalStorageにも保存
 function openFile(filename, content) {
-    // ファイル内容を保存
     openFiles[filename] = content;
-
-    // 新しいタブを作成
+    localStorage.setItem("openFiles", JSON.stringify(openFiles)); // 保存
     newFileTab(filename);
-
-    // ファイルをエディタに表示
     loadFileTab(filename);
 }
 
@@ -328,7 +424,13 @@ function openFile(filename, content) {
             terminal.value = "";
         }
     });
-
+// ページ読み込み時に前回開いていたタブを復元
+window.addEventListener("load", () => {
+    const lastOpen = JSON.parse(localStorage.getItem("openFiles") || "{}");
+    for (let filename in lastOpen) {
+        openFile(filename, lastOpen[filename]);
+    }
+});
     openFile('newfile.js', '');
 </script>
 
